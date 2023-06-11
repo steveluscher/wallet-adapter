@@ -3,15 +3,15 @@ import {
     DisconnectOutlined as DisconnectIcon,
     SwapOutlined as SwitchIcon,
 } from '@ant-design/icons';
-import { useWallet } from '@solana/wallet-adapter-react';
+import { useWalletButton } from '@solana/wallet-adapter-react';
 import type { ButtonProps } from 'antd';
-import { Button, Dropdown, Menu } from 'antd';
+import { Dropdown, Menu } from 'antd';
 import type { FC } from 'react';
 import React, { useMemo } from 'react';
-import { useWalletModal } from './useWalletModal.js';
+import { WalletButtonBase } from './WalletButonBase.js';
 import { WalletConnectButton } from './WalletConnectButton.js';
-import { WalletIcon } from './WalletIcon.js';
 import { WalletModalButton } from './WalletModalButton.js';
+import { useWalletModal } from './useWalletModal.js';
 
 export const WalletMultiButton: FC<ButtonProps> = ({
     type = 'primary',
@@ -20,17 +20,20 @@ export const WalletMultiButton: FC<ButtonProps> = ({
     children,
     ...props
 }) => {
-    const { publicKey, wallet, disconnect } = useWallet();
+    const walletButtonState = useWalletButton();
     const { setVisible } = useWalletModal();
 
-    const base58 = useMemo(() => publicKey?.toBase58(), [publicKey]);
+    const base58 = useMemo(
+        () => ('publicKey' in walletButtonState ? walletButtonState.publicKey.toBase58() : null),
+        [walletButtonState]
+    );
     const content = useMemo(() => {
         if (children) return children;
-        if (!wallet || !base58) return null;
+        if (!base58) return null;
         return base58.slice(0, 4) + '..' + base58.slice(-4);
-    }, [children, wallet, base58]);
+    }, [base58, children]);
 
-    if (!wallet) {
+    if (walletButtonState.walletState === 'no-wallet') {
         return (
             <WalletModalButton type={type} size={size} htmlType={htmlType} {...props}>
                 {children}
@@ -44,23 +47,20 @@ export const WalletMultiButton: FC<ButtonProps> = ({
             </WalletConnectButton>
         );
     }
-
+    const wallet = 'wallet' in walletButtonState ? walletButtonState.wallet : undefined;
     return (
         <Dropdown
             overlay={
                 <Menu className="wallet-adapter-multi-button-menu">
                     <Menu.Item className="wallet-adapter-multi-button-menu-item">
-                        <Button
-                            icon={<WalletIcon wallet={wallet} />}
-                            type={type}
-                            size={size}
-                            htmlType={htmlType}
-                            className="wallet-adapter-multi-button-menu-button"
-                            block
+                        <WalletButtonBase
                             {...props}
+                            block
+                            className="wallet-adapter-multi-button-menu-button"
+                            wallet={wallet}
                         >
-                            {wallet.adapter.name}
-                        </Button>
+                            {wallet?.adapter.name}
+                        </WalletButtonBase>
                     </Menu.Item>
                     <Menu.Item
                         onClick={async () => {
@@ -78,25 +78,22 @@ export const WalletMultiButton: FC<ButtonProps> = ({
                     >
                         Change wallet
                     </Menu.Item>
-                    <Menu.Item
-                        onClick={() => {
-                            // eslint-disable-next-line @typescript-eslint/no-empty-function
-                            disconnect().catch(() => {
-                                // Silently catch because any errors are caught by the context `onError` handler
-                            });
-                        }}
-                        icon={<DisconnectIcon className=".wallet-adapter-multi-button-icon" />}
-                        className="wallet-adapter-multi-button-item"
-                    >
-                        Disconnect
-                    </Menu.Item>
+                    {'onDisconnect' in walletButtonState ? (
+                        <Menu.Item
+                            onClick={walletButtonState.onDisconnect}
+                            icon={<DisconnectIcon className=".wallet-adapter-multi-button-icon" />}
+                            className="wallet-adapter-multi-button-item"
+                        >
+                            Disconnect
+                        </Menu.Item>
+                    ) : null}
                 </Menu>
             }
             trigger={['click']}
         >
-            <Button icon={<WalletIcon wallet={wallet} />} type={type} size={size} htmlType={htmlType} {...props}>
+            <WalletButtonBase {...props} wallet={wallet}>
                 {content}
-            </Button>
+            </WalletButtonBase>
         </Dropdown>
     );
 };

@@ -1,39 +1,47 @@
-import { useWallet } from '@solana/wallet-adapter-react';
-import type { FC, MouseEventHandler } from 'react';
+import { useWalletButton } from '@solana/wallet-adapter-react';
+import type { FC, MouseEvent } from 'react';
 import React, { useCallback, useMemo } from 'react';
 import type { ButtonProps } from './Button.js';
-import { Button } from './Button.js';
-import { WalletIcon } from './WalletIcon.js';
+import { WalletButtonBase } from './WalletButtonBase.js';
 
 export const WalletConnectButton: FC<ButtonProps> = ({ children, disabled, onClick, ...props }) => {
-    const { wallet, connect, connecting, connected } = useWallet();
-
-    const handleClick: MouseEventHandler<HTMLButtonElement> = useCallback(
-        (event) => {
+    const walletButtonState = useWalletButton();
+    const { walletState } = walletButtonState;
+    const handleClick = useCallback(
+        (event: MouseEvent<HTMLButtonElement>) => {
             if (onClick) onClick(event);
-            // eslint-disable-next-line @typescript-eslint/no-empty-function
-            if (!event.defaultPrevented) connect().catch(() => {});
+            if (!event.defaultPrevented) {
+                if ('onConnect' in walletButtonState) {
+                    walletButtonState.onConnect();
+                }
+            }
         },
-        [onClick, connect]
+        [onClick, walletButtonState]
     );
-
-    const content = useMemo(() => {
+    const label = useMemo(() => {
         if (children) return children;
-        if (connecting) return 'Connecting ...';
-        if (connected) return 'Connected';
-        if (wallet) return 'Connect';
-        return 'Connect Wallet';
-    }, [children, connecting, connected, wallet]);
-
+        switch (walletState) {
+            case 'connecting':
+                return 'Connecting ...';
+            case 'connected':
+                return 'Connected';
+            default:
+                return 'wallet' in walletButtonState ? 'Connect' : 'Connect Wallet';
+        }
+    }, [children, walletButtonState, walletState]);
     return (
-        <Button
-            className="wallet-adapter-button-trigger"
-            disabled={disabled || !wallet || connecting || connected}
-            startIcon={wallet ? <WalletIcon wallet={wallet} /> : undefined}
-            onClick={handleClick}
+        <WalletButtonBase
             {...props}
+            disabled={
+                disabled ||
+                !('wallet' in walletButtonState) ||
+                walletState === 'connected' ||
+                walletState === 'connecting'
+            }
+            onClick={handleClick}
+            wallet={'wallet' in walletButtonState ? walletButtonState.wallet : undefined}
         >
-            {content}
-        </Button>
+            {label}
+        </WalletButtonBase>
     );
 };

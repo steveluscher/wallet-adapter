@@ -7,14 +7,14 @@ import {
     SwapHoriz as SwitchIcon,
 } from '@mui/icons-material';
 import type { ButtonProps, Theme } from '@mui/material';
-import { Button, Collapse, Fade, ListItemIcon, Menu, MenuItem, styled } from '@mui/material';
-import { useWallet } from '@solana/wallet-adapter-react';
+import { Collapse, Fade, ListItemIcon, Menu, MenuItem, styled } from '@mui/material';
+import { useWalletButton } from '@solana/wallet-adapter-react';
 import type { FC } from 'react';
 import React, { useMemo, useState } from 'react';
 import { useWalletDialog } from './useWalletDialog.js';
 import { WalletConnectButton } from './WalletConnectButton.js';
 import { WalletDialogButton } from './WalletDialogButton.js';
-import { WalletIcon } from './WalletIcon.js';
+import { WalletButtonBase } from './WalletButtonBase.js';
 
 const StyledMenu = styled(Menu)(({ theme }: { theme: Theme }) => ({
     '& .MuiList-root': {
@@ -47,53 +47,39 @@ const WalletMenuItem = styled(WalletActionMenuItem)(({ theme }: { theme: Theme }
     },
 }));
 
-export const WalletMultiButton: FC<ButtonProps> = ({
-    color = 'primary',
-    variant = 'contained',
-    type = 'button',
-    children,
-    ...props
-}) => {
-    const { publicKey, wallet, disconnect } = useWallet();
+export const WalletMultiButton: FC<ButtonProps> = ({ children, ...props }) => {
+    const walletButtonState = useWalletButton();
     const { setOpen } = useWalletDialog();
     const [anchor, setAnchor] = useState<HTMLElement>();
 
-    const base58 = useMemo(() => publicKey?.toBase58(), [publicKey]);
+    const base58 = useMemo(
+        () => ('publicKey' in walletButtonState ? walletButtonState.publicKey.toBase58() : null),
+        [walletButtonState]
+    );
     const content = useMemo(() => {
         if (children) return children;
-        if (!wallet || !base58) return null;
+        if (!base58) return null;
         return base58.slice(0, 4) + '..' + base58.slice(-4);
-    }, [children, wallet, base58]);
+    }, [children, base58]);
 
-    if (!wallet) {
-        return (
-            <WalletDialogButton color={color} variant={variant} type={type} {...props}>
-                {children}
-            </WalletDialogButton>
-        );
+    if (walletButtonState.walletState === 'no-wallet') {
+        return <WalletDialogButton {...props}>{children}</WalletDialogButton>;
     }
     if (!base58) {
-        return (
-            <WalletConnectButton color={color} variant={variant} type={type} {...props}>
-                {children}
-            </WalletConnectButton>
-        );
+        return <WalletConnectButton {...props}>{children}</WalletConnectButton>;
     }
-
+    const wallet = 'wallet' in walletButtonState ? walletButtonState.wallet : undefined;
     return (
         <>
-            <Button
-                color={color}
-                variant={variant}
-                type={type}
-                startIcon={<WalletIcon wallet={wallet} />}
-                onClick={(event) => setAnchor(event.currentTarget)}
+            <WalletButtonBase
+                {...props}
                 aria-controls="wallet-menu"
                 aria-haspopup="true"
-                {...props}
+                onClick={(event) => setAnchor(event.currentTarget)}
+                wallet={wallet}
             >
                 {content}
-            </Button>
+            </WalletButtonBase>
             <StyledMenu
                 id="wallet-menu"
                 anchorEl={anchor}
@@ -109,17 +95,9 @@ export const WalletMultiButton: FC<ButtonProps> = ({
                 }}
             >
                 <WalletMenuItem onClick={() => setAnchor(undefined)}>
-                    <Button
-                        color={color}
-                        variant={variant}
-                        type={type}
-                        startIcon={<WalletIcon wallet={wallet} />}
-                        onClick={(event) => setAnchor(undefined)}
-                        fullWidth
-                        {...props}
-                    >
-                        {wallet.adapter.name}
-                    </Button>
+                    <WalletButtonBase {...props} fullWidth onClick={() => setAnchor(undefined)} wallet={wallet}>
+                        {wallet?.adapter.name}
+                    </WalletButtonBase>
                 </WalletMenuItem>
                 <Collapse in={!!anchor}>
                     <WalletActionMenuItem
@@ -144,20 +122,19 @@ export const WalletMultiButton: FC<ButtonProps> = ({
                         </ListItemIcon>
                         Change wallet
                     </WalletActionMenuItem>
-                    <WalletActionMenuItem
-                        onClick={() => {
-                            setAnchor(undefined);
-                            // eslint-disable-next-line @typescript-eslint/no-empty-function
-                            disconnect().catch(() => {
-                                // Silently catch because any errors are caught by the context `onError` handler
-                            });
-                        }}
-                    >
-                        <ListItemIcon>
-                            <DisconnectIcon />
-                        </ListItemIcon>
-                        Disconnect
-                    </WalletActionMenuItem>
+                    {'onDisconnect' in walletButtonState ? (
+                        <WalletActionMenuItem
+                            onClick={() => {
+                                setAnchor(undefined);
+                                walletButtonState.onDisconnect();
+                            }}
+                        >
+                            <ListItemIcon>
+                                <DisconnectIcon />
+                            </ListItemIcon>
+                            Disconnect
+                        </WalletActionMenuItem>
+                    ) : null}
                 </Collapse>
             </StyledMenu>
         </>

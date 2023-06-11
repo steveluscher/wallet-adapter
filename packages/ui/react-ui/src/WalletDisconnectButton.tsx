@@ -1,38 +1,42 @@
-import { useWallet } from '@solana/wallet-adapter-react';
-import type { FC, MouseEventHandler } from 'react';
+import { useWalletButton } from '@solana/wallet-adapter-react';
+import type { FC, MouseEvent } from 'react';
 import React, { useCallback, useMemo } from 'react';
 import type { ButtonProps } from './Button.js';
-import { Button } from './Button.js';
-import { WalletIcon } from './WalletIcon.js';
+import { WalletButtonBase } from './WalletButtonBase.js';
 
 export const WalletDisconnectButton: FC<ButtonProps> = ({ children, disabled, onClick, ...props }) => {
-    const { wallet, disconnect, disconnecting } = useWallet();
-
-    const handleClick: MouseEventHandler<HTMLButtonElement> = useCallback(
-        (event) => {
+    const walletButtonState = useWalletButton();
+    const { walletState } = walletButtonState;
+    const handleClick = useCallback(
+        (event: MouseEvent<HTMLButtonElement>) => {
             if (onClick) onClick(event);
-            // eslint-disable-next-line @typescript-eslint/no-empty-function
-            if (!event.defaultPrevented) disconnect().catch(() => {});
+            if (!event.defaultPrevented) {
+                if ('onDisconnect' in walletButtonState) {
+                    walletButtonState.onDisconnect();
+                } else if (walletButtonState.walletState === 'disconnected') {
+                    walletButtonState.onSelectWallet(null);
+                }
+            }
         },
-        [onClick, disconnect]
+        [onClick, walletButtonState]
     );
-
-    const content = useMemo(() => {
+    const label = useMemo(() => {
         if (children) return children;
-        if (disconnecting) return 'Disconnecting ...';
-        if (wallet) return 'Disconnect';
-        return 'Disconnect Wallet';
-    }, [children, disconnecting, wallet]);
-
+        switch (walletState) {
+            case 'disconnecting':
+                return 'Disconnecting ...';
+            default:
+                return 'wallet' in walletButtonState ? 'Disconnect' : 'Disconnect Wallet';
+        }
+    }, [children, walletButtonState, walletState]);
     return (
-        <Button
-            className="wallet-adapter-button-trigger"
-            disabled={disabled || !wallet}
-            startIcon={wallet ? <WalletIcon wallet={wallet} /> : undefined}
-            onClick={handleClick}
+        <WalletButtonBase
             {...props}
+            disabled={disabled || !('wallet' in walletButtonState)}
+            onClick={handleClick}
+            wallet={'wallet' in walletButtonState ? walletButtonState.wallet : undefined}
         >
-            {content}
-        </Button>
+            {label}
+        </WalletButtonBase>
     );
 };
