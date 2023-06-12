@@ -10,6 +10,12 @@ import { Keypair } from '@solana/web3.js';
 
 export const UnsafeBurnerWalletName = 'Burner Wallet' as WalletName<'Burner Wallet'>;
 
+async function sleep(ms: number) {
+    return new Promise((resolve) => {
+        setTimeout(resolve, ms);
+    });
+}
+
 /**
  * This burner wallet adapter is unsafe to use and is only included to provide an easy way for applications to test
  * Wallet Adapter without using a third-party wallet.
@@ -51,11 +57,13 @@ export class UnsafeBurnerWalletAdapter extends BaseSignerWalletAdapter {
 
     async connect(): Promise<void> {
         this._keypair = new Keypair();
+        await sleep(1000);
         this.emit('connect', this._keypair.publicKey);
     }
 
     async disconnect(): Promise<void> {
         this._keypair = null;
+        await sleep(1000);
         this.emit('disconnect');
     }
 
